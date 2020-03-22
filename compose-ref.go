@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -99,6 +100,25 @@ func main() {
 						return err
 					}
 					return doDown(project, config)
+				},
+			},
+			{
+				Name:  "publish",
+				Usage: "publish TARGET[:TAG]",
+				Action: func(c *commandLine.Context) error {
+					target := c.Args().Get(0)
+					if len(target) == 0 {
+						return errors.New("Missing required argument: TARGET:[TAG]")
+					}
+					config, err := load(file)
+					if err != nil {
+						return err
+					}
+					project, err = getProject(project, file)
+					if err != nil {
+						return err
+					}
+					return doPublish(project, config, target)
 				},
 			},
 		},
@@ -313,6 +333,23 @@ func createService(cli *client.Client, project string, prjDir string, s compose.
 	}
 	fmt.Println(create.ID)
 	return nil
+}
+
+func doPublish(project string, config *compose.Config, target string) error {
+	cli, err := getClient()
+	if err != nil {
+		return nil
+	}
+
+	ctx := context.Background()
+
+	fmt.Println("= Pinning service images...")
+	if err := internal.PinServiceImages(cli, ctx, config); err != nil {
+		return err
+	}
+
+	fmt.Println("= Publishing bundle...")
+	return internal.CreateBundle(ctx, config, target)
 }
 
 func doDown(project string, config *compose.Config) error {
