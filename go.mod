@@ -2,9 +2,9 @@ module github.com/compose-spec/compose-ref
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
-	github.com/Microsoft/go-winio v0.4.14 // indirect
+	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/compose-spec/compose-go v0.0.0-20200131085702-0b38cc2d8e6b
-	github.com/containerd/containerd v1.3.2
+	github.com/containerd/containerd v1.3.2 // indirect
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/docker/cli v0.0.0-20200320120634-22acbbcc4b3f
 	github.com/docker/distribution v2.7.1+incompatible
