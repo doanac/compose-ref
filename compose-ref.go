@@ -110,15 +110,7 @@ func main() {
 					if len(target) == 0 {
 						return errors.New("Missing required argument: TARGET:[TAG]")
 					}
-					config, err := load(file)
-					if err != nil {
-						return err
-					}
-					project, err = getProject(project, file)
-					if err != nil {
-						return err
-					}
-					return doPublish(project, config, target)
+					return doPublish(file, target)
 				},
 			},
 		},
@@ -335,16 +327,28 @@ func createService(cli *client.Client, project string, prjDir string, s compose.
 	return nil
 }
 
-func doPublish(project string, config *compose.Config, target string) error {
+func doPublish(file, target string) error {
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	config, err := loader.ParseYAML(b)
+	if err != nil {
+		return err
+	}
 	cli, err := getClient()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	ctx := context.Background()
 
 	fmt.Println("= Pinning service images...")
-	if err := internal.PinServiceImages(cli, ctx, config); err != nil {
+	svcs, ok := config["services"]
+	if !ok {
+		return errors.New("Unable to find 'services' section of compose file")
+	}
+	if err := internal.PinServiceImages(cli, ctx, svcs.(map[string]interface{})); err != nil {
 		return err
 	}
 

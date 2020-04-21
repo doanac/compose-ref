@@ -13,22 +13,33 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	compose "github.com/compose-spec/compose-go/types"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/ocischema"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/client"
 )
 
-func PinServiceImages(cli *client.Client, ctx context.Context, config *compose.Config) error {
-	return config.WithServices(nil, func(service compose.ServiceConfig) error {
-		fmt.Printf("Pinning %s(%s)\n", service.Name, service.Image)
-		named, err := reference.ParseNormalizedNamed(service.Image)
+func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}) error {
+	for name, obj := range services {
+		svc, ok := obj.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("Service(%s) has invalid format", name)
+		}
+		obj, ok := svc["image"]
+		if !ok {
+			return fmt.Errorf("Service(%s) missing 'image' attribute", name)
+		}
+		image, ok := obj.(string)
+		if !ok {
+			return fmt.Errorf("Service(%s) invalid 'image' attribute", name)
+		}
+		fmt.Printf("Pinning %s(%s)\n", name, image)
+		named, err := reference.ParseNormalizedNamed(image)
 		if err != nil {
 			return err
 		}
 
-		di, err := cli.DistributionInspect(ctx, service.Image, "")
+		di, err := cli.DistributionInspect(ctx, image, "")
 		if err != nil {
 			fmt.Println("")
 			return err
@@ -49,15 +60,9 @@ func PinServiceImages(cli *client.Client, ctx context.Context, config *compose.C
 		}
 		fmt.Println("\n  |-> ", pinned)
 
-		// Update the actual config and not our copy of it
-		for i := range config.Services {
-			if config.Services[i].Name == service.Name {
-				config.Services[i].Image = pinned
-				break
-			}
-		}
-		return nil
-	})
+		svc["image"] = pinned
+	}
+	return nil
 }
 
 func createTgz(composeContent []byte, bundleDir string) ([]byte, error) {
@@ -120,7 +125,7 @@ func createTgz(composeContent []byte, bundleDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateBundle(ctx context.Context, config *compose.Config, target string) error {
+func CreateBundle(ctx context.Context, config map[string]interface{}, target string) error {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
 		return err
