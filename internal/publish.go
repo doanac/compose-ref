@@ -14,12 +14,15 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/docker/distribution"
+	"github.com/docker/distribution/manifest/manifestlist"
 	"github.com/docker/distribution/manifest/ocischema"
+	"github.com/docker/distribution/manifest/schema2"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/client"
 )
 
 func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}) error {
+	regc := NewRegistryClient()
 	for name, obj := range services {
 		svc, ok := obj.(map[string]interface{})
 		if !ok {
@@ -39,27 +42,38 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 			return err
 		}
 
-		di, err := cli.DistributionInspect(ctx, image, "")
+		repo, err := regc.GetRepository(ctx, named)
 		if err != nil {
-			fmt.Println("")
 			return err
 		}
+		tag := named.(reference.Tagged).Tag()
+		desc, err := repo.Tags(ctx).Get(ctx, tag)
+		mansvc, err := repo.Manifests(ctx, nil)
+		man, err := mansvc.Get(ctx, desc.Digest)
 
 		// TODO - we should find the intersection of platforms so
 		// that we can denote the platforms this app can run on
-		pinned := reference.Domain(named) + "/" + reference.Path(named) + "@" + di.Descriptor.Digest.String()
-		fmt.Printf("  | ")
-		for i, plat := range di.Platforms {
-			if i != 0 {
-				fmt.Printf(", ")
-			}
-			fmt.Printf(plat.Architecture)
-			if plat.Architecture == "arm" {
-				fmt.Printf(plat.Variant)
-			}
-		}
-		fmt.Println("\n  |-> ", pinned)
+		pinned := reference.Domain(named) + "/" + reference.Path(named) + "@" + desc.Digest.String()
 
+		switch mani := man.(type) {
+		case *manifestlist.DeserializedManifestList:
+			fmt.Printf("  | ")
+			for i, m := range mani.Manifests {
+				if i != 0 {
+					fmt.Printf(", ")
+				}
+				fmt.Printf(m.Platform.Architecture)
+				if m.Platform.Architecture == "arm" {
+					fmt.Printf(m.Platform.Variant)
+				}
+			}
+		case *schema2.DeserializedManifest:
+			break
+		default:
+			return fmt.Errorf("Unexpected manifest: %v", mani)
+		}
+
+		fmt.Println("\n  |-> ", pinned)
 		svc["image"] = pinned
 	}
 	return nil
