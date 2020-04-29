@@ -352,8 +352,8 @@ func doPublish(file, target string) error {
 		return err
 	}
 
-	fmt.Println("= Publishing bundle...")
-	return internal.CreateBundle(ctx, config, target)
+	fmt.Println("= Publishing app...")
+	return internal.CreateApp(ctx, config, target)
 }
 
 func doDown(project string, config *compose.Config) error {

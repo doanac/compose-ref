@@ -79,15 +79,15 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 	return nil
 }
 
-func createTgz(composeContent []byte, bundleDir string) ([]byte, error) {
+func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
 
 	tw := tar.NewWriter(gzw)
 
-	err := filepath.Walk(bundleDir, func(file string, fi os.FileInfo, err error) error {
+	err := filepath.Walk(appDir, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
-			return fmt.Errorf("Tar: Can't stat file %s to tar: %w", bundleDir, err)
+			return fmt.Errorf("Tar: Can't stat file %s to tar: %w", appDir, err)
 		}
 
 		if fi.Mode().IsDir() {
@@ -107,7 +107,7 @@ func createTgz(composeContent []byte, bundleDir string) ([]byte, error) {
 		}
 
 		// Handle subdirectories
-		header.Name = strings.TrimPrefix(strings.Replace(file, bundleDir, "", -1), string(filepath.Separator))
+		header.Name = strings.TrimPrefix(strings.Replace(file, appDir, "", -1), string(filepath.Separator))
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -139,7 +139,7 @@ func createTgz(composeContent []byte, bundleDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateBundle(ctx context.Context, config map[string]interface{}, target string) error {
+func CreateApp(ctx context.Context, config map[string]interface{}, target string) error {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
 		return err
@@ -170,9 +170,9 @@ func CreateBundle(ctx context.Context, config map[string]interface{}, target str
 	if err != nil {
 		return nil
 	}
-	fmt.Println("  |-> bundle: ", desc.Digest.String())
+	fmt.Println("  |-> app: ", desc.Digest.String())
 
-	mb := ocischema.NewManifestBuilder(blobStore, []byte{}, map[string]string{"compose-bundle": "v1"})
+	mb := ocischema.NewManifestBuilder(blobStore, []byte{}, map[string]string{"compose-app": "v1"})
 	mb.AppendReference(desc)
 
 	manifest, err := mb.Build(ctx)
