@@ -18,6 +18,7 @@ import (
 	"github.com/docker/distribution/manifest/ocischema"
 	"github.com/docker/distribution/manifest/schema2"
 	"github.com/docker/distribution/reference"
+	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
 )
 
@@ -79,11 +80,25 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 	return nil
 }
 
+func getIgnores(appDir string) []string {
+	file, err := os.Open(filepath.Join(appDir, ".composeappignores"))
+	if err != nil {
+		return nil
+	}
+	ignores, _ := dockerignore.ReadAll(file)
+	file.Close()
+	if ignores != nil {
+		ignores = append(ignores, ".composeappignores")
+	}
+	return ignores
+}
+
 func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
-
 	tw := tar.NewWriter(gzw)
+
+	ignores := getIgnores(appDir)
 
 	err := filepath.Walk(appDir, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -108,6 +123,14 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 
 		// Handle subdirectories
 		header.Name = strings.TrimPrefix(strings.Replace(file, appDir, "", -1), string(filepath.Separator))
+		if ignores != nil {
+			for _, ignore := range ignores {
+				if match, err:= filepath.Match(ignore, header.Name); err == nil && match {
+					fmt.Println("  |-> ignoring: ", header.Name)
+					return nil
+				}
+			}
+		}
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
