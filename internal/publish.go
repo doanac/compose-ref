@@ -37,6 +37,20 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		if !ok {
 			return fmt.Errorf("Service(%s) invalid 'image' attribute", name)
 		}
+
+		// We can't rely on the normal interpolation logic used in
+		// compose-ref, so we have to do the best we can here.
+		if image[0] == '$' {
+			if image[1] != '{' || image[len(image)-1] != '}' {
+				return fmt.Errorf("Invalid image reference(%s). This does not look like a properly format ${variable-defval}", image)
+			}
+			parts := strings.SplitAfterN(image, "-", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("Invalid image reference(%s). Variable does not appear to have a default value", image)
+			}
+			image = parts[1][:len(parts[1])-1]  //Strip off the }
+		}
+
 		fmt.Printf("Pinning %s(%s)\n", name, image)
 		named, err := reference.ParseNormalizedNamed(image)
 		if err != nil {
