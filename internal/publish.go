@@ -113,6 +113,7 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	tw := tar.NewWriter(gzw)
 
 	ignores := getIgnores(appDir)
+	warned := make(map[string]bool)
 
 	err := filepath.Walk(appDir, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -121,11 +122,6 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 
 		if fi.Mode().IsDir() {
 			return nil
-		}
-		if !fi.Mode().IsRegular() {
-			// TODO handle the different types similar to
-			// https://github.com/moby/moby/blob/master/pkg/archive/archive.go#L573
-			return fmt.Errorf("Tar: Can't tar non regular types yet: %s", fi.Name())
 		}
 		header, err := tar.FileInfoHeader(fi, fi.Name())
 		if err != nil {
@@ -140,10 +136,19 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 		if ignores != nil {
 			for _, ignore := range ignores {
 				if match, err:= filepath.Match(ignore, header.Name); err == nil && match {
-					fmt.Println("  |-> ignoring: ", header.Name)
+					if !warned[ignore] {
+						fmt.Println("  |-> ignoring: ", ignore)
+					}
+					warned[ignore] = true
 					return nil
 				}
 			}
+		}
+
+		if !fi.Mode().IsRegular() {
+			// TODO handle the different types similar to
+			// https://github.com/moby/moby/blob/master/pkg/archive/archive.go#L573
+			return fmt.Errorf("Tar: Can't tar non regular types yet: %s", header.Name)
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
@@ -201,6 +206,8 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	if err != nil {
 		return err
 	}
+
+	return err
 
 	blobStore := repo.Blobs(ctx)
 	desc, err := blobStore.Put(ctx, "application/tar+gzip", buff)
