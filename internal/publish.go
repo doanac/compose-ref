@@ -146,9 +146,17 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 		}
 
 		if !fi.Mode().IsRegular() {
-			// TODO handle the different types similar to
-			// https://github.com/moby/moby/blob/master/pkg/archive/archive.go#L573
-			return fmt.Errorf("Tar: Can't tar non regular types yet: %s", header.Name)
+			if fi.Mode() & os.ModeSymlink != 0 {
+				link, err := os.Readlink(header.Name)
+				if err != nil {
+					return fmt.Errorf("Tar: Can't find symlink: %s", err)
+				}
+				header.Linkname = link
+			} else {
+				// TODO handle the different types similar to
+				// https://github.com/moby/moby/blob/master/pkg/archive/archive.go#L573
+				return fmt.Errorf("Tar: Can't tar non regular types yet: %s", header.Name)
+			}
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
@@ -157,7 +165,7 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 
 		if fi.Name() == "docker-compose.yml" {
 			tw.Write(composeContent)
-		} else {
+		} else if fi.Mode().IsRegular() {
 			f, err := os.Open(file)
 			if err != nil {
 				f.Close()
@@ -206,8 +214,6 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	if err != nil {
 		return err
 	}
-
-	return err
 
 	blobStore := repo.Blobs(ctx)
 	desc, err := blobStore.Put(ctx, "application/tar+gzip", buff)
