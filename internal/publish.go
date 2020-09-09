@@ -61,7 +61,11 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		if err != nil {
 			return err
 		}
-		tag := named.(reference.Tagged).Tag()
+		namedTagged, ok := named.(reference.Tagged)
+		if !ok {
+			return fmt.Errorf("Invalid image reference(%s): Images must be tagged. e.g %s:stable", image, image)
+		}
+		tag := namedTagged.Tag()
 		desc, err := repo.Tags(ctx).Get(ctx, tag)
 		mansvc, err := repo.Manifests(ctx, nil)
 		man, err := mansvc.Get(ctx, desc.Digest)
